@@ -2,6 +2,19 @@
 
 A specification and reference implementation for blockchain-based credentials that are resolved via smart contracts with support for onchain, offchain, and zero-knowledge proofs.
 
+## Deployments
+
+**Sepolia Testnet (Latest - Factory Pattern v1.1.0):**
+- **Implementation:** [`0x867990E9bec0B52067d5f5ce80f26096896d09c8`](https://sepolia.etherscan.io/address/0x867990e9bec0b52067d5f5ce80f26096896d09c8)
+- **Factory:** [`0x4EC7776636f664E3AbBD700fB4BF745FC9E6c0DC`](https://sepolia.etherscan.io/address/0x4ec7776636f664e3abbd700fb4bf745fc9e6c0dc)
+- **Deployment Report:** [sepolia-2025-12-25-0030.md](./deployments/sepolia-2025-12-25-0030.md)
+
+Create your own Smart Credential instance:
+```solidity
+AgentProjectsFactory(0x4EC7776636f664E3AbBD700fB4BF745FC9E6c0DC)
+    .createAgentProjects(registryAddress, "My Credential");
+```
+
 ## Overview
 
 Smart Credentials provide a uniform method for resolving credentials in the context of onchain identity profiles. Credentials are records "about" an entity controlled by a credential issuer, as opposed to records "by" an entity that the entity controls directly.
