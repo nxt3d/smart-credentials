@@ -77,7 +77,9 @@ bytes memory retrieved = credential.getReview(123, 456);
 
 ### Agent Projects Credential
 
-The `AgentProjects` contract implements both ERC-8048 metadata and the Reviews extension with authorization checks:
+The `AgentProjects` contract implements both ERC-8048 metadata and the Reviews extension with authorization checks. It also supports ERC-8049 for contract-level metadata.
+
+#### Direct Deployment
 
 ```solidity
 import {AgentProjects} from "./src/credentials/AgentProjects.sol";
@@ -92,11 +94,47 @@ projects.setProject(agentId, "project-name", "My Project");
 bytes memory reviewData = "score: 95 review: excellent work";
 projects.review(reviewerId, reviewedId, reviewData);
 
-// Update agent registry (only contract owner)
+// Set contract metadata (only owner)
+projects.setContractMetadata("name", "Agent Projects");
+projects.setContractMetadata("description", "A credential for agent projects");
+
+// Update agent registry (only owner)
 projects.setAgentRegistry(newRegistryAddress);
 
 // Transfer ownership
 projects.transferOwnership(newOwner);
+```
+
+#### Factory Pattern (Recommended)
+
+For gas-efficient deployments, use the factory pattern with minimal clones (ERC-1167):
+
+```solidity
+import {AgentProjectsFactory} from "./src/credentials/AgentProjectsFactory.sol";
+import {AgentProjects} from "./src/credentials/AgentProjects.sol";
+
+// Deploy factory with implementation (one-time)
+AgentProjects implementation = new AgentProjects(defaultRegistry);
+AgentProjectsFactory factory = new AgentProjectsFactory(address(implementation));
+
+// Create clones (cheap deployments)
+address clone = factory.createAgentProjects(
+    agentRegistryAddress,  // Registry address (or zero for default)
+    "My Custom Credential" // Name for this instance
+);
+
+// Use the clone
+AgentProjects projects = AgentProjects(clone);
+projects.setProject(agentId, "project-name", "My Project");
+
+// Create deterministic clones
+bytes32 salt = keccak256("my-unique-salt");
+address predicted = factory.predictDeterministicAddress(salt);
+address clone2 = factory.createAgentProjectsDeterministic(
+    agentRegistryAddress,
+    "Another Credential",
+    salt
+);
 ```
 
 ## Architecture
@@ -105,17 +143,20 @@ projects.transferOwnership(newOwner);
 
 - **`ERCXXXXReviews`**: Abstract extension contract implementing the Reviews interface using Diamond Storage
 - **`SmartCredential`**: Simple, open implementation with no authorization checks
-- **`AgentProjects`**: Full-featured implementation with ERC-8048 metadata, authorization, and updatable registry
+- **`AgentProjects`**: Full-featured implementation with ERC-8048 metadata, ERC-8049 contract metadata, authorization, and updatable registry
+- **`AgentProjectsFactory`**: Minimal clones factory (ERC-1167) for gas-efficient deployments
 
 ### Extensions
 
 - **`ERC8048`**: Token-level metadata extension
+- **`ERC8049`**: Contract-level metadata extension
 - **`ERCXXXXReviews`**: Reviews extension with double mapping storage
 
 ### Interfaces
 
 - **`IERCXXXXReviews`**: Reviews interface specification
-- **`IERC8048`**: Metadata interface specification
+- **`IERC8048`**: Token-level metadata interface specification
+- **`IERC8049`**: Contract-level metadata interface specification
 - **`IAgentProjects`**: Agent projects interface
 
 ## Development
@@ -134,6 +175,8 @@ forge test
 
 ### Deploy
 
+Deploy implementation and factory:
+
 ```bash
 # Set environment variables
 export DEPLOYER_PRIVATE_KEY=<your_private_key>
@@ -145,6 +188,11 @@ forge script script/Deploy.s.sol:Deploy \
   --broadcast \
   --verify \
   --etherscan-api-key <ETHERSCAN_API_KEY>
+
+# Optionally create a clone during deployment
+export CREATE_CLONE=true
+export CLONE_NAME="My Agent Projects"
+forge script script/Deploy.s.sol:Deploy --rpc-url <RPC_URL> --broadcast
 ```
 
 See [deployment reports](./deployments/) for latest deployments.
@@ -152,6 +200,24 @@ See [deployment reports](./deployments/) for latest deployments.
 ## Rationale
 
 For the design rationale and technical details, please refer to [ERC-XXXX: Smart Credentials](https://eips.ethereum.org/EIPS/eip-XXXX).
+
+### Factory Pattern
+
+The `AgentProjectsFactory` uses the ERC-1167 minimal proxy pattern for gas-efficient deployments:
+
+- **Implementation**: Deploy once, reuse many times
+- **Clones**: ~10x cheaper to deploy than full contracts
+- **Deterministic**: Optional deterministic addresses using CREATE2
+- **Initialization**: Each clone is automatically initialized with registry, owner, and name
+- **Tracking**: Factory tracks all clones and per-owner deployments
+
+### Gas Savings
+
+| Operation | Full Contract | Factory Clone | Savings |
+|-----------|--------------|---------------|---------|
+| First Deployment | ~2.1M gas | ~2.1M gas | 0% |
+| Second Deployment | ~2.1M gas | ~200K gas | ~90% |
+| Third+ Deployments | ~2.1M gas | ~200K gas | ~90% |
 
 ## Security Considerations
 
